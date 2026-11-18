@@ -153,6 +153,7 @@ h2{margin:0;font-size:26px}
     ‧ 特殊晶石互相交換會同時引爆。<br>
     ‧ 每關有步數限制，達成所有目標就過關，剩餘步數越多星等越高。<br>
     ‧ 每開始一局消耗 1 點體力，每 10 分鐘回復 1 點；體力不足時可看廣告或使用金幣補充。<br>
+    ‧ <b>障礙物</b>：石頭（旁邊消除才會碎）、鎖鏈（湊成三連解鎖）、星果（送到最底下）、雙層冰（敲兩次）。<br>
     ‧ 每 10 關有寶箱，每通關一個世界有大獎。完成每日任務與成就可拿金幣、道具與外觀。
   </div>
   <button class="btn sec" id="b-help-back">返回</button>
@@ -429,7 +430,7 @@ const defSave=()=>({v:3,coins:50,done:0,stars:{},boost:{hammer:2,shuffle:2,moves
   energy:{n:CFG.energy.cap,t:Date.now(),seen:Date.now(),adDay:'',adUsed:0},
   vip:{until:0,gDay:''},noAds:false,
   daily:{day:'',prog:{},claimed:{}},login:{last:'',streak:0,claimed:''},
-  tips:{},fl:{n:0,c:0},starter:false,ach:{},stats:{win:0,clear:0,special:0,combo:0,rainbow:0,stars:0,days:0,ads:0,iap:0},first:Date.now()});
+  tips:{},fl:{n:0,c:0},ev:{wk:'',w:0,s:0,c:0,cl:{},stamp:0,stampCl:{},round:0,album:{},albumCl:{},pity:0},starter:false,ach:{},stats:{win:0,clear:0,special:0,combo:0,rainbow:0,stars:0,days:0,ads:0,iap:0},first:Date.now()});
 let save=defSave();
 function merge(d,o){
   if(!o||typeof o!=='object') return d;
@@ -507,6 +508,7 @@ function dailyIds(){
 }
 function stat(k,n){
   save.stats[k]=(save.stats[k]||0)+n; dailyRoll();
+  if(k==='win'||k==='stars'||k==='clear'){evRoll(); const e=save.ev; if(k==='win') e.w+=n; else if(k==='stars') e.s+=n; else e.c+=n;}
   if(TASKS[k]) save.daily.prog[k]=(save.daily.prog[k]||0)+n;
   dirty=true;
 }
@@ -580,6 +582,30 @@ const WORLDS=[
   {n:'琥珀沙漠',c:['#d98a3a','#7a3b2e']},{n:'極光冰原',c:['#5aa9e6','#1d3f6e']},{n:'熔岩火山',c:['#e0553a','#6b1d14']},
   {n:'雲端天空',c:['#7aa7ff','#3b4fa8']},{n:'星砂銀河',c:['#9a5be0','#2a1a5e']},{n:'玉龍仙境',c:['#2f9d8f','#1b3a4a']},{n:'永恆星核',c:['#ff7aa8','#4a1a5e']}
 ];
+const srng=q=>()=>{q=(q+0x6D2B79F5)|0; let t=Math.imul(q^q>>>15,1|q); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296;};
+/* 障礙物關卡：每 4 關的第 4 關(12,16,20…)輪流出 石頭／鎖鏈／掉落物 */
+function obstacle(L,n,d){
+  const v=Math.floor((n-12)/4)%3, rg=srng(n*7919+13), cells=[];
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++) cells.push([r,c]);
+  for(let i=cells.length-1;i>0;i--){const j=Math.floor(rg()*(i+1)); [cells[i],cells[j]]=[cells[j],cells[i]];}
+  L.obs=['stone','chain','drop'][v];
+  if(v===0){
+    const cnt=Math.round(14+d*8), h2=Math.round(cnt*Math.min(1,.35+d*.6));
+    L.stones=cells.filter(p=>p[0]>=1&&p[0]<=N-3).slice(0,cnt).map((p,i)=>[p[0],p[1],i<h2?2:1]);
+    L.moves=Math.round(18+cnt*.55+h2*.25);
+    L.goals.push({k:'stone',t:cnt});
+  }else if(v===1){
+    const cnt=Math.round(4+d*2);
+    L.chains=cells.slice(0,cnt).map(p=>[p[0],p[1]]);
+    L.moves=Math.round(22+cnt*1.6);
+    L.goals.push({k:'chain',t:cnt});
+  }else{
+    const t=Math.round(2+d*1.5);
+    L.drops=t; L.moves=Math.round(20+t*3);
+    L.goals.push({k:'drop',t});
+  }
+  return true;
+}
 function levelDef(n){
   const cyc=(n-1)%6, hard=n>3&&(cyc===3||cyc===4), relief=cyc===5&&n>1, easy=!hard&&!relief;   // 3 易 2 難 1 緩
   const d=Math.min(1,(n-1)/70)+(n>100?Math.min(.25,(n-100)/800):0);
@@ -601,6 +627,8 @@ function levelDef(n){
     for(let i=0;i<want;i++) L.ice[cells[i][0]][cells[i][1]]=1;
     L.moves=Math.round(22+want*.35-d*2);
     L.goals.push({k:'ice',t:want});
+    if(n>=30){const dbl=Math.round(want*(.25+.2*d)); for(let i=0;i<dbl;i++) L.ice[cells[i][0]][cells[i][1]]=2; L.moves+=Math.round(dbl*.5);}
+  }else if(n>=12&&obstacle(L,n,d)){
   }else{
     L.moves=Math.round(25-d*2);
     L.goals.push({k:'score',t:Math.max(800,Math.round(L.moves*PM[ncol]*(.35+.3*d)/100)*100)},{k:'col',c:(n*3)%ncol,t:Math.round(10+d*4)});
@@ -626,17 +654,26 @@ function newTile(t){return {id:++tid,t:t==null?rnd(B.ncol):t,sp:null,x:0,y:0,vy:
 function startLevel(n,keepScreen){
   const L=levelDef(n);
   B={lv:n,L,ncol:L.ncol,moves:L.moves,score:0,goals:L.goals.map(g=>Object.assign({n:0},g)),
-     grid:Array.from({length:N},()=>Array(N).fill(null)),ice:L.ice.map(r=>r.slice()),iceLeft:0,
+     grid:Array.from({length:N},()=>Array(N).fill(null)),ice:L.ice.map(r=>r.slice()),iceLeft:0,stoneLeft:0,chLeft:0,drop:{want:L.drops||0,spawned:0,got:0},
      busy:false,over:false,sel:null,tool:null,idle:0,hint:null,dying:[],parts:[],texts:[],shards:[],fxs:[],sched:[],banners:[],iceGhost:new Set(),shake:0,ts:Date.now(),t:0,lastSwap:null,drag:null,coll:{}};
   for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(B.ice[r][c]) B.iceLeft++;
+  for(const [r,c,hp] of L.stones||[]){B.grid[r][c]={id:++tid,t:-2,stone:1,hp,mhp:hp,sp:null,x:c,y:r,vy:0}; B.stoneLeft++;}
+  B.chLeft=(L.chains||[]).length;
   let tries=0;
   do{
     for(let r=0;r<N;r++) for(let c=0;c<N;c++){
+      if(B.grid[r][c]&&B.grid[r][c].stone) continue;
       let t,g=0;
       do{
         t=rnd(B.ncol); g++;
       }while(g<30&&((c>=2&&B.grid[r][c-1].t===t&&B.grid[r][c-2].t===t)||(r>=2&&B.grid[r-1][c].t===t&&B.grid[r-2][c].t===t)));
       const tile=newTile(t); tile.x=c; tile.y=r-N-1-Math.random()*.5; B.grid[r][c]=tile;
+    }
+    for(const [r,c] of L.chains||[]) B.grid[r][c].ch=1;
+    if(B.drop.want){
+      B.drop.spawned=0; const cs=[0,1,2,3,4,5,6,7];
+      for(let i=cs.length-1;i>0;i--){const j=rnd(i+1); [cs[i],cs[j]]=[cs[j],cs[i]];}
+      for(let i=0;i<Math.min(3,B.drop.want);i++){const c=cs[i], rr=1+rnd(3), old=B.grid[rr][c], it=newTile(-3); it.item=1; it.x=c; it.y=old.y; B.grid[rr][c]=it; B.drop.spawned++;}
     }
     tries++;
   }while(tries<50&&(movesList().length===0));
@@ -679,6 +716,7 @@ function movesList(){
   for(let r=0;r<N;r++) for(let c=0;c<N;c++) for(const [dr,dc] of [[0,1],[1,0]]){
     const r2=r+dr,c2=c+dc; if(!inb(r2,c2)) continue;
     const a=B.grid[r][c],b=B.grid[r2][c2]; if(!a||!b) continue;
+    if(a.stone||b.stone||a.ch||b.ch) continue;
     let ok=a.sp==='c'||b.sp==='c'||(a.sp&&b.sp);
     if(!ok){swapG([r,c],[r2,c2]); ok=findGroups().length>0; swapG([r,c],[r2,c2]);}
     if(ok) list.push([r,c,r2,c2]);
@@ -757,6 +795,12 @@ function banner(combo){
 }
 function doClear(set,spawns,combo,base){
   base=base||new Set(); stat('clear',set.size);
+  const hitS=new Set();
+  for(const k of set){
+    const [r,c]=k.split(',').map(Number), t=B.grid[r][c]; if(!t) continue;
+    if(t.stone) hitS.add(k);
+    else if(!t.item) for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){const r2=r+dr,c2=c+dc; if(inb(r2,c2)){const q=B.grid[r2][c2]; if(q&&q.stone) hitS.add(key(r2,c2));}}
+  }
   for(const s of spawns){stat('special',1); if(s.sp==='c') stat('rainbow',1);}
   const protect=new Set(spawns.map(s=>key(s.r,s.c)));
   const mergeTo=new Map();
@@ -809,19 +853,29 @@ function doClear(set,spawns,combo,base){
   let first=null;
   for(let i=0;i<keys.length;i++){
     const k=keys[i], r=pos[i][0], c=pos[i][1], tile=B.grid[r][c]; if(!tile) continue;
+    if(tile.stone||tile.item) continue;
     if(tile.t>=0) B.coll[tile.t]=(B.coll[tile.t]||0)+1;
     for(const g of B.goals) if(g.k==='col'&&tile.t===g.c) g.n++;
     const d=dl.get(k);
-    if(B.ice[r][c]){
+    if(B.ice[r][c]>1){
+      B.ice[r][c]=1; sched(d,()=>shatter(c+0.5,r+0.5,-1,'ice'));
+    }else if(B.ice[r][c]){
       B.ice[r][c]=0; B.iceLeft--; B.iceGhost.add(k);
       sched(d,()=>{B.iceGhost.delete(k); shatter(c+0.5,r+0.5,-1,'ice');});
     }
+    if(tile.ch){tile.ch=0; B.chLeft--; sparks(tile.x+.5,tile.y+.5,8,['#e6ebf5','#8b95ab','#ffffff'],5); snd(1200,.1,'square',.05,-300);}
     B.score+=Math.round(10*(1+0.5*(combo-1)));
     if(protect.has(k)) continue;
     const m=mergeTo.get(k);
     B.dying.push({col:tile.t,sp:tile.sp,x:tile.x,y:tile.y,age:-d,life:m?0.2:0.24,mx:m?m[0]:null,my:m?m[1]:null});
     if(!m){const cx=tile.x+0.5, cy=tile.y+0.5, cl=tile.t; sched(d,()=>shatter(cx,cy,cl,'tile'));}
     B.grid[r][c]=null; if(!first) first=[r,c];
+  }
+  for(const k of hitS){
+    const [r,c]=k.split(',').map(Number), q=B.grid[r][c]; if(!q||!q.stone) continue;
+    q.hp--; const x=c+.5, y=r+.5;
+    if(q.hp<=0){B.grid[r][c]=null; B.stoneLeft--; B.score+=30; sparks(x,y,14,['#d9dde6','#9aa1b2','#5d6577','#ffffff'],6); B.shake=Math.max(B.shake,4); snd(150,.25,'square',.1,-80);}
+    else{q.flash=.25; sparks(x,y,6,['#d9dde6','#9aa1b2'],4); snd(260,.1,'square',.07,-60);}
   }
   /* 特殊晶石誕生 */
   for(const s of spawns){
@@ -834,12 +888,38 @@ function doClear(set,spawns,combo,base){
   clearSnd(combo);
   return Math.max(230,Math.round((maxD+0.26)*1000),spawns.length?310:0);
 }
+function spawnTile(){
+  const D=B.drop;
+  if(D&&D.spawned<D.want&&allTiles().filter(x=>x.item).length<4&&Math.random()<.3){D.spawned++; const t=newTile(-3); t.item=1; return t;}
+  return newTile();
+}
 function gravity(){
+  const isS=(r,c)=>B.grid[r][c]&&B.grid[r][c].stone;
   for(let c=0;c<N;c++){
-    let w=N-1;
-    for(let r=N-1;r>=0;r--){const t=B.grid[r][c]; if(t){if(r!==w){B.grid[w][c]=t;B.grid[r][c]=null;} w--;}}
-    let k=0; for(let r=w;r>=0;r--){const t=newTile(); t.x=c; t.y=-(++k); B.grid[r][c]=t;}
+    let bot=N-1;
+    while(bot>=0){
+      if(isS(bot,c)){bot--; continue;}
+      let top=bot; while(top-1>=0&&!isS(top-1,c)) top--;
+      let w=bot;
+      for(let r=bot;r>=top;r--){const t=B.grid[r][c]; if(t){if(r!==w){B.grid[w][c]=t;B.grid[r][c]=null;} w--;}}
+      let k=0; for(let r=w;r>=top;r--){const t=spawnTile(); t.x=c; t.y=top-(++k); B.grid[r][c]=t;}
+      bot=top-1;
+    }
   }
+}
+function collectItems(){
+  let any=false;
+  for(let c=0;c<N;c++){
+    const t=B.grid[N-1][c];
+    if(t&&t.item){
+      B.grid[N-1][c]=null; B.drop.got++; any=true; const x=c+.5, y=N-.5;
+      B.dying.push({col:-3,sp:null,x:t.x,y:t.y,age:0,life:.3,mx:null,my:null});
+      sparks(x,y,10,['#ffe27a','#fff6c0','#ffb02e'],5); snd(880,.18,'triangle',.1,300);
+      B.score+=100; B.texts.push({x,y,txt:'+100',age:0});
+    }
+  }
+  if(any) updateHud();
+  return any;
 }
 const allTiles=()=>{const a=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(B.grid[r][c])a.push(B.grid[r][c]);return a;};
 function settled(){
@@ -856,6 +936,7 @@ async function clearAndFall(set,spawns,combo,base){
   await sleep(ms);
   if(B!==my) return;
   gravity(); await waitSettled();
+  for(let g=0;g<9&&B===my&&collectItems();g++){await sleep(220); gravity(); await waitSettled();}
 }
 async function resolve(){
   const my=B; let combo=0;
@@ -904,6 +985,7 @@ async function specialSwap(a,b,ta,tb){
 }
 async function doSwap(a,b){
   if(!B||B.busy||B.over) return;
+  {const x0=B.grid[a[0]][a[1]], y0=B.grid[b[0]][b[1]]; if(!x0||!y0||x0.stone||y0.stone||x0.ch||y0.ch){B.sel=null; B.drag=null; snd(180,.1,'square',.07); return;}}
   B.busy=true; B.idle=0; B.hint=null; B.sel=null;
   swapG(a,b); snd(330,.07);
   await waitSettled();
@@ -922,6 +1004,9 @@ async function doSwap(a,b){
 function goalDone(g){
   if(g.k==='score') return B.score>=g.t;
   if(g.k==='col') return g.n>=g.t;
+  if(g.k==='stone') return B.stoneLeft<=0;
+  if(g.k==='chain') return B.chLeft<=0;
+  if(g.k==='drop') return B.drop.got>=g.t;
   return B.iceLeft<=0;
 }
 const goalsDone=()=>B.goals.every(goalDone);
@@ -941,7 +1026,17 @@ async function bonusMoves(){
     await clearAndFall(set,[],1,new Set([key(r,c)])); await resolve();
   }
 }
+function slideItems(){
+  let moved=false;
+  for(let c=0;c<N;c++) for(let r=N-2;r>=0;r--){
+    const a=B.grid[r][c], b=B.grid[r+1][c];
+    if(a&&a.item&&b&&!b.item&&!b.stone&&!b.ch){B.grid[r][c]=b; B.grid[r+1][c]=a; moved=true;}
+  }
+  return moved;
+}
 async function finishMove(){
+  if(B.drop.want&&B.drop.got<B.drop.want&&(B.slideN=(B.slideN||0)+1)%2===0&&slideItems()){await waitSettled(); await resolve();}
+  for(let g=0;g<9&&collectItems();g++){await sleep(200); gravity(); await waitSettled(); await resolve();}
   updateHud(); if(dirty) persist();
   if(goalsDone()){await sleep(350); await bonusMoves(); return win();}
   if(B.moves<=0){await sleep(350); return lose();}
@@ -949,17 +1044,19 @@ async function finishMove(){
   B.busy=false;
 }
 function shuffleBoard(){
-  const tiles=allTiles();
+  const pos=[]; for(let r=0;r<N;r++) for(let c=0;c<N;c++) if(B.grid[r][c]&&!B.grid[r][c].stone) pos.push([r,c]);
+  const tiles=pos.map(p=>B.grid[p[0]][p[1]]);
   let g=0;
   do{
     for(let i=tiles.length-1;i>0;i--){const j=rnd(i+1); [tiles[i],tiles[j]]=[tiles[j],tiles[i]];}
-    let i=0; for(let r=0;r<N;r++) for(let c=0;c<N;c++) B.grid[r][c]=tiles[i++];
+    pos.forEach((p,i)=>{B.grid[p[0]][p[1]]=tiles[i];});
     g++;
   }while(g<60&&(findGroups().length>0||movesList().length===0));
   snd(500,.2,'triangle',.1,-200);
 }
 async function useHammer(r,c){
   if(!B.grid[r][c]) return;
+  if(B.grid[r][c].item){toast('星果不能敲掉'); return;}
   B.busy=true; B.tool=null; save.boost.hammer--; persist(); updateBoost();
   fxEv=[]; const set=new Set([key(r,c)]); expand(set);
   await clearAndFall(set,[],1,new Set([key(r,c)]));
@@ -976,6 +1073,7 @@ function win(){
   save.done=Math.max(save.done,n);
   const gain=10+stars*5+(first?20:0); save.coins+=gain;
   stat('win',1); stat('stars',stars);
+  const evMsg=evOnWin();
   let extra='';
   if(first&&n%30===0){
     const w=n/30, bg=Object.keys(BGS).find(k=>BGS[k].world===w);
@@ -988,7 +1086,7 @@ function win(){
   persist(); tSave();
   $('res-title').textContent='過關！';
   $('stars').innerHTML=[1,2,3].map(i=>`<span class="${i<=stars?'':'off'}">★</span>`).join('');
-  $('res-body').innerHTML='得分 '+B.score+'・剩餘 '+sm+' 步・金幣 +'+gain+(extra?'<br><b style="color:#ffd166">'+extra+'</b>':'')+'<br><span class="sm">'+eLabel()+'</span>';
+  $('res-body').innerHTML='得分 '+B.score+'・剩餘 '+sm+' 步・金幣 +'+gain+(extra?'<br><b style="color:#ffd166">'+extra+'</b>':'')+(evMsg?'<br><span class="sm" style="color:#9fe0ff">'+evMsg+'</span>':'')+'<br><span class="sm">'+eLabel()+'</span>';
   $('b-next').classList.toggle('hide',n>=MAXLV);
   $('b-more').classList.add('hide');
   snd(523,.15,'triangle'); setTimeout(()=>snd(659,.15,'triangle'),150); setTimeout(()=>snd(784,.3,'triangle'),300);
@@ -1016,7 +1114,7 @@ function buildGoals(){
   goalEls=[]; const box=$('goals'); box.innerHTML='';
   for(const g of B.goals){
     const el=document.createElement('div'); el.className='gl';
-    let icon=''; if(g.k==='col') icon=svgShape(g.c); else if(g.k==='ice') icon='<span>冰</span>'; else icon='<span>分</span>';
+    let icon=''; if(g.k==='col') icon=svgShape(g.c); else if(g.k==='ice') icon='<span>冰</span>'; else if(g.k==='stone') icon='<svg viewBox="0 0 100 100"><path d="M16 66 L10 40 L30 16 L62 10 L86 30 L90 64 L66 88 L30 86Z" fill="#a4aab8" stroke="#555d70" stroke-width="7" stroke-linejoin="round"/></svg>'; else if(g.k==='chain') icon='<svg viewBox="0 0 100 100" fill="none" stroke="#c5ccdc" stroke-width="11"><rect x="8" y="32" width="48" height="36" rx="18" stroke="#8f99b0"/><rect x="44" y="32" width="48" height="36" rx="18"/></svg>'; else if(g.k==='drop') icon='<svg viewBox="0 0 100 100"><path d="M50 8L62 38L94 40L69 60L78 92L50 74L22 92L31 60L6 40L38 38Z" fill="#ffd34d" stroke="#b8630f" stroke-width="7" stroke-linejoin="round"/></svg>'; else icon='<span>分</span>';
     el.innerHTML=icon+'<span class="v"></span>'; box.appendChild(el); goalEls.push(el);
   }
   $('lvlname').textContent='關卡 '+B.lv;
@@ -1030,6 +1128,9 @@ function updateHud(){
     let txt;
     if(g.k==='score') txt=Math.min(B.score,g.t)+'/'+g.t;
     else if(g.k==='col') txt=Math.min(g.n,g.t)+'/'+g.t;
+    else if(g.k==='stone') txt=(g.t-Math.max(0,B.stoneLeft))+'/'+g.t;
+    else if(g.k==='chain') txt=(g.t-Math.max(0,B.chLeft))+'/'+g.t;
+    else if(g.k==='drop') txt=Math.min(B.drop.got,g.t)+'/'+g.t;
     else txt=(g.t-Math.max(0,B.iceLeft))+'/'+g.t;
     el.querySelector('.v').textContent=txt;
     el.classList.toggle('done',goalDone(g));
@@ -1151,10 +1252,47 @@ function paintBody(col,time,raw){
     F('rgba(255,255,255,.45)',38,33,[15,8,-.6]);
   }
 }
+function drawItem(time){
+  ctx.save(); ctx.translate(50,50);
+  const g=ctx.createRadialGradient(0,-8,6,0,0,46); g.addColorStop(0,'#fffbe0'); g.addColorStop(1,'#ffd34d');
+  ctx.beginPath(); ctx.arc(0,0,43,0,7); ctx.fillStyle=g; ctx.fill();
+  ctx.lineWidth=8; ctx.strokeStyle='#fff'; ctx.stroke(); ctx.lineWidth=3; ctx.strokeStyle='#d98a1a'; ctx.beginPath(); ctx.arc(0,0,47,0,7); ctx.stroke();
+  ctx.rotate(Math.sin(time*2)*.1);
+  ctx.beginPath(); for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5, rr=i%2?12:27; ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr-4);} ctx.closePath();
+  ctx.fillStyle='#ff9d1c'; ctx.fill(); ctx.lineJoin='round'; ctx.lineWidth=4; ctx.strokeStyle='#a85a08'; ctx.stroke();
+  ctx.rotate(-Math.sin(time*2)*.1);
+  ctx.fillStyle='#a85a08'; ctx.beginPath(); ctx.moveTo(-9,26); ctx.lineTo(9,26); ctx.lineTo(0,37); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function drawStone(x,y,s,t){
+  ctx.save(); ctx.translate(x+s/2,y+s/2); const u=s*.92/100; ctx.scale(u,u); ctx.translate(-50,-50);
+  const P=[[14,66],[8,40],[28,14],[62,8],[88,28],[92,64],[68,90],[30,88]];
+  ctx.beginPath(); P.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1])); ctx.closePath();
+  const g=ctx.createLinearGradient(0,8,0,90); g.addColorStop(0,t.flash>0?'#ffffff':'#c9ceda'); g.addColorStop(1,t.flash>0?'#dfe3ee':'#7c8396');
+  ctx.fillStyle=g; ctx.fill(); ctx.lineJoin='round'; ctx.lineWidth=7; ctx.strokeStyle=t.mhp>1?'#2f3750':'#4d566c'; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.35)'; ctx.beginPath(); ctx.moveTo(24,30); ctx.lineTo(36,20); ctx.lineTo(58,17); ctx.lineTo(40,34); ctx.closePath(); ctx.fill();
+  if(t.mhp>1){ctx.lineWidth=4; ctx.strokeStyle=t.hp>1?'#e8c55a':'rgba(232,197,90,.35)'; ctx.beginPath(); P.forEach((p,i)=>{const q=[50+(p[0]-50)*.72,50+(p[1]-50)*.72]; i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);}); ctx.closePath(); ctx.stroke();}
+  if(t.hp<t.mhp||t.flash>0){ctx.lineWidth=4; ctx.strokeStyle='#3a4256'; ctx.beginPath(); ctx.moveTo(52,14); ctx.lineTo(46,40); ctx.lineTo(60,56); ctx.lineTo(50,84); ctx.moveTo(46,40); ctx.lineTo(26,52); ctx.stroke();}
+  ctx.restore();
+}
+function drawChain(x,y,s,time){
+  ctx.save(); ctx.translate(x,y);
+  const m=s*.06, w=s-m*2;
+  ctx.lineCap='round'; ctx.setLineDash([s*.16,s*.07]);
+  ctx.lineWidth=s*.12; ctx.strokeStyle='#2a3045'; ctx.strokeRect(m,m,w,w);
+  ctx.lineWidth=s*.075; ctx.strokeStyle='#dbe1ee'; ctx.strokeRect(m,m,w,w);
+  ctx.setLineDash([]);
+  const cx=s*.5, cy=s*.5, k=s*.2;
+  ctx.fillStyle='#2a3045'; ctx.beginPath(); ctx.arc(cx,cy-k*.55,k*.62,Math.PI,0); ctx.lineWidth=s*.07; ctx.strokeStyle='#2a3045'; ctx.stroke();
+  ctx.fillStyle='#f2c64a'; ctx.strokeStyle='#8a5a10'; ctx.lineWidth=s*.04;
+  ctx.beginPath(); ctx.roundRect?ctx.roundRect(cx-k,cy-k*.3,k*2,k*1.4,k*.3):ctx.rect(cx-k,cy-k*.3,k*2,k*1.4); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
 function drawTile(col,sp,x,y,s,scale,alpha,time,fl,sx,sy){
   ctx.save(); ctx.globalAlpha=alpha;
   ctx.translate(x+s/2,y+s/2); ctx.scale(scale*(sx||1),scale*(sy||1));
   const u=s*.86/100; ctx.scale(u,u); ctx.translate(-50,-50);
+  if(col===-3){drawItem(time||0); ctx.restore(); return;}
   if(sp==='c'){
     ctx.save(); ctx.translate(50,50); ctx.rotate(time*.9);
     for(let i=0;i<6;i++){ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,44,i*Math.PI/3,(i+1)*Math.PI/3); ctx.closePath(); ctx.fillStyle=COLORS[i]; ctx.fill();}
@@ -1292,11 +1430,12 @@ function draw(){
     if(B.ice[r][c]||B.iceGhost.has(key(r,c))){
       ctx.fillStyle='rgba(150,225,255,.30)'; ctx.fillRect(c*cell+1,r*cell+1,cell-2,cell-2);
       ctx.strokeStyle='rgba(210,245,255,.75)'; ctx.lineWidth=2; ctx.strokeRect(c*cell+3,r*cell+3,cell-6,cell-6);
+      if(B.ice[r][c]>1){ctx.fillStyle='rgba(110,190,255,.38)'; ctx.fillRect(c*cell+1,r*cell+1,cell-2,cell-2); ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=3; ctx.strokeRect(c*cell+6,r*cell+6,cell-12,cell-12); ctx.strokeStyle='rgba(50,120,205,.9)'; ctx.lineWidth=2; ctx.strokeRect(c*cell+2,r*cell+2,cell-4,cell-4);}
     }
   }
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,boardPx,boardPx); ctx.clip();
   for(let r=0;r<N;r++) for(let c=0;c<N;c++){
-    const t=B.grid[r][c]; if(!t) continue;
+    const t=B.grid[r][c]; if(!t||t.stone) continue;
     let sc=1,fl=0,sx=1,sy=1;
     if(B.hint&&((B.hint[0]===r&&B.hint[1]===c)||(B.hint[2]===r&&B.hint[3]===c))) sc=1+.12*Math.sin(B.t*9);
     if(B.sel&&B.sel[0]===r&&B.sel[1]===c) sc=1.1;
@@ -1304,7 +1443,9 @@ function draw(){
     if(t.land>0){const k=t.land/.2; sx=1+.12*k; sy=1-.14*k;}
     const hid=t.pd>0;
     drawTile(hid?t.ot:t.t,hid?null:t.sp,t.x*cell,t.y*cell+(1-sy)*cell*.43,cell,sc,1,B.t,fl,sx,sy);
+    if(t.ch&&!hid) drawChain(t.x*cell,t.y*cell,cell,B.t);
   }
+  for(let r=0;r<N;r++) for(let c=0;c<N;c++){const t=B.grid[r][c]; if(t&&t.stone){if(t.flash>0) t.flash-=.016; drawStone(c*cell,r*cell,cell,t);}}
   for(const d of B.dying){
     let x=d.x,y=d.y,sc=1,al=1,fl=0;
     if(d.age<0){ if(d.age>-.07) fl=(1+d.age/.07)*.7; }
@@ -1364,6 +1505,7 @@ cv.addEventListener('pointerdown',e=>{
   const [r,c,x,y]=cellAt(e); if(!inb(r,c)) return;
   B.idle=0; B.hint=null;
   if(B.tool==='hammer'){useHammer(r,c); return;}
+  {const t0=B.grid[r][c]; if(t0&&(t0.stone||t0.ch)){B.sel=null; toast(t0.stone?'石頭不能移動，從旁邊消除就能打碎':'被鎖住了，湊成三連就能解鎖'); return;}}
   if(B.sel){
     const d=Math.abs(B.sel[0]-r)+Math.abs(B.sel[1]-c);
     if(d===1){const a=B.sel; B.sel=null; doSwap(a,[r,c]); return;}
@@ -1417,6 +1559,7 @@ function adSim(label,btnText,cb){
 }
 function hasClaim(){
   if(save.login.claimed!==dkey()) return true;
+  if(evHasClaim()) return true;
   for(const id of dailyIds()) if((save.daily.prog[id]||0)>=TASKS[id].t&&!save.daily.claimed[id]) return true;
   for(const a of ACH) if(!save.ach[a.id]&&achVal(a)>=a.t) return true;
   return false;
@@ -1440,6 +1583,10 @@ const TIPS={
   4:['爆裂晶','排出 L 形或 T 形，會變成「爆裂晶」，消除時清掉周圍 3×3。'],
   5:['彩虹晶','連 5 顆是「彩虹晶」，和任何晶石交換，會清掉盤面上同色的全部！'],
   7:['洗牌','沒有可走的組合時會自動洗牌；也可以手動用洗牌道具。送你 1 個洗牌。',{b:{shuffle:1}}],
+  12:['石頭','石頭不能移動。在它旁邊消除晶石就能打碎，有金邊的雙層石頭要打兩次。送你 1 個錘子。',{b:{hammer:1}}],
+  16:['鎖鏈','被鎖住的晶石不能交換，但可以和同色晶石湊成三連來解鎖。送你 1 個錘子。',{b:{hammer:1}}],
+  20:['星果','把星果送到最底下一排就算收集成功。消除星果下方的晶石，它就會往下掉。送你 1 個加步數。',{b:{moves:1}}],
+  31:['雙層冰','有粗框的冰塊要敲兩次才會破。'],
   9:['加步數','步數不夠時可以用「+3 步」。差一點就過關時最划算。送你 1 個。',{b:{moves:1}}]
 };
 function showTip(n){
@@ -1493,9 +1640,84 @@ function renderMap(){
 }
 
 /* 任務 / 成就 / 簽到 */
+/* ---------- 活動：每週挑戰／集章卡／星座圖鑑 ---------- */
+const EVENTS={stamp:{n:'冬季星光集章',from:'2026-11-15',to:'2027-01-05'}};
+const evActive=id=>{const e=EVENTS[id], t=dkey(); return UNLOCK||(t>=e.from&&t<=e.to);};
+const wkey=()=>{const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-((d.getDay()+6)%7)); return dkey(d.getTime());};
+const WKT=[{id:'w',k:'w',n:'本週通關 12 關',t:12,r:{g:80}},{id:'s',k:'s',n:'本週獲得 30 顆星',t:30,r:{g:60,b:{hammer:1}}},{id:'c',k:'c',n:'本週消除 1000 顆晶石',t:1000,r:{g:60,b:{shuffle:1}}}];
+const WKB={g:200,b:{hammer:1,shuffle:1,moves:1}};
+const STAMPR=[{at:3,r:{g:60}},{at:6,r:{b:{hammer:1,shuffle:1}}},{at:10,r:{g:200,b:{moves:2}}}];
+const CONS=['牡羊','金牛','雙子','巨蟹','獅子','處女','天秤','天蠍','射手','摩羯','水瓶','雙魚'].map(x=>x+'座');
+const ALBR=[{at:4,r:{g:100}},{at:8,r:{b:{hammer:1,shuffle:1,moves:1}}},{at:12,r:{g:500}}];
+function evRoll(){const e=save.ev, k=wkey(); if(e.wk!==k){e.wk=k; e.w=0; e.s=0; e.c=0; e.cl={};}}
+const albumN=()=>Object.keys(save.ev.album).length;
+function evHasClaim(){
+  evRoll(); const e=save.ev;
+  for(const t of WKT) if(e[t.k]>=t.t&&!e.cl[t.id]) return true;
+  if(WKT.every(t=>e.cl[t.id])&&!e.cl.bonus) return true;
+  if(evActive('stamp')) STAMPR.forEach((q,i)=>{}); 
+  if(evActive('stamp')) for(let i=0;i<STAMPR.length;i++) if(e.stamp>=STAMPR[i].at&&!e.stampCl[i]) return true;
+  for(let i=0;i<ALBR.length;i++) if(albumN()>=ALBR[i].at&&!e.albumCl[i]) return true;
+  return false;
+}
+function evOnWin(){
+  evRoll(); const e=save.ev, out=[];
+  if(evActive('stamp')){
+    if(e.stamp>=10&&STAMPR.every((q,i)=>e.stampCl[i])){e.stamp=0; e.stampCl={}; e.round++;}
+    if(e.stamp<10){e.stamp++; out.push('集章 +1（'+e.stamp+'/10）');}
+  }
+  e.pity++;
+  if(e.pity>=3||Math.random()<.4){
+    e.pity=0; const un=CONS.map((_,i)=>i).filter(i=>!e.album[i]);
+    const i=(un.length&&Math.random()<.85)?un[rnd(un.length)]:rnd(CONS.length);
+    if(e.album[i]){save.coins+=15; out.push('星座卡重複，轉為金幣 +15');}
+    else{e.album[i]=1; out.push('獲得星座卡：'+CONS[i]);}
+  }
+  return out.join('・');
+}
+function consSvg(i,own){
+  const rg=srng(i*131+7), pts=[]; let x=18+rg()*20, y=25+rg()*50;
+  for(let k=0;k<6;k++){pts.push([x,y]); x=Math.min(88,Math.max(12,x+8+rg()*14)); y=Math.min(88,Math.max(12,y+(rg()-.5)*46));}
+  const line=pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+  return '<svg viewBox="0 0 100 100" style="width:100%;display:block;background:'+(own?'#1b2a6b':'#10173a')+';border-radius:10px"><polyline points="'+line+'" fill="none" stroke="'+(own?'#ffe08a':'#2c3668')+'" stroke-width="2.5" stroke-linejoin="round"/>'+pts.map(p=>'<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(own?4.5:3.5)+'" fill="'+(own?'#fff3b0':'#2c3668')+'"/>').join('')+'</svg>';
+}
+function renderEvent(box){
+  evRoll(); const e=save.ev;
+  const hd=(t,sub)=>{const d=document.createElement('div'); d.style.marginTop='6px'; d.innerHTML='<b style="font-size:15px;border-left:4px solid #f0a93a;padding-left:6px">'+t+'</b>'+(sub?'<div class="sm">'+sub+'</div>':''); return d;};
+  const days=7-((new Date().getDay()+6)%7);
+  box.appendChild(hd('每週挑戰','每週一重置，剩 '+days+' 天'));
+  for(const t of WKT){
+    const p=Math.min(t.t,e[t.k]), ok=p>=t.t, cl=!!e.cl[t.id];
+    box.appendChild(rowEl(t.n,p+'/'+t.t+'　獎勵：'+rtext(t.r),cl?mkBtn('已領',null,true,true):mkBtn(ok?'領取':'進行中',()=>{e.cl[t.id]=1; toast(grant(t.r)); renderTask(); renderBar();},!ok)));
+  }
+  const all=WKT.every(t=>e.cl[t.id]);
+  box.appendChild(rowEl('全部完成大獎','三項都領取後解鎖　獎勵：'+rtext(WKB),e.cl.bonus?mkBtn('已領',null,true,true):mkBtn(all?'領取':'未完成',()=>{e.cl.bonus=1; toast(grant(WKB)); renderTask(); renderBar();},!all)));
+
+  const st=EVENTS.stamp;
+  box.appendChild(hd('限時活動：'+st.n,'活動期間 '+mdTxt(st.from)+' – '+mdTxt(st.to)+'　每通關一次蓋一個章'));
+  if(!evActive('stamp')) box.appendChild(noteEl('活動目前未開放。'));
+  else{
+    const c=document.createElement('div'); c.className='card2';
+    c.innerHTML='<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px">'+Array.from({length:10},(_,i)=>'<div style="aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;'+(i<e.stamp?'background:#ffd166;color:#7a4a00':'background:rgba(0,0,0,.07);color:#a08a78;border:2px dashed #c4b3a2')+'">'+(i<e.stamp?'★':(i+1))+'</div>').join('')+'</div>';
+    box.appendChild(c);
+    STAMPR.forEach((q,i)=>{
+      const ok=e.stamp>=q.at, cl=!!e.stampCl[i];
+      box.appendChild(rowEl('集滿 '+q.at+' 個章','獎勵：'+rtext(q.r),cl?mkBtn('已領',null,true,true):mkBtn(ok?'領取':e.stamp+'/'+q.at,()=>{e.stampCl[i]=1; toast(grant(q.r)); renderTask(); renderBar();},!ok)));
+    });
+  }
+
+  box.appendChild(hd('星座圖鑑','通關有機會獲得星座卡（'+albumN()+'/'+CONS.length+'），重複的卡會換成金幣'));
+  const g=document.createElement('div'); g.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px';
+  CONS.forEach((n,i)=>{const own=!!e.album[i]; const d=document.createElement('div'); d.style.cssText='text-align:center;font-size:12px'; d.innerHTML=consSvg(i,own)+'<div style="margin-top:2px;'+(own?'font-weight:800':'opacity:.5')+'">'+(own?n:'？？？')+'</div>'; g.appendChild(d);});
+  box.appendChild(g);
+  ALBR.forEach((q,i)=>{
+    const ok=albumN()>=q.at, cl=!!e.albumCl[i];
+    box.appendChild(rowEl('收集 '+q.at+' 張','獎勵：'+rtext(q.r),cl?mkBtn('已領',null,true,true):mkBtn(ok?'領取':albumN()+'/'+q.at,()=>{e.albumCl[i]=1; toast(grant(q.r)); renderTask(); renderBar();},!ok)));
+  });
+}
 let taskTab='day';
 function renderTask(){
-  tabs('task-tabs',[['day','今日任務'],['ach','成就'],['login','簽到']],taskTab,t=>{taskTab=t; renderTask();});
+  tabs('task-tabs',[['day','今日任務'],['ev','活動'],['ach','成就'],['login','簽到']],taskTab,t=>{taskTab=t; renderTask();});
   const box=$('task-list'); box.innerHTML=''; const k=dkey(); dailyRoll();
   if(taskTab==='day'){
     const ids=dailyIds();
@@ -1507,6 +1729,8 @@ function renderTask(){
         toast(m); renderTask(); renderBar();},!ok)));
     }
     box.appendChild(noteEl('三項全部完成可額外獲得：'+rtext(CFG.dailyBonus)));
+  }else if(taskTab==='ev'){
+    renderEvent(box);
   }else if(taskTab==='ach'){
     for(const a of ACH){
       const v=achVal(a), ok=v>=a.t, cl=!!save.ach[a.id];
@@ -1689,7 +1913,7 @@ requestAnimationFrame(frame);
 window.__m3={
   start:n=>startLevel(n), skins:()=>SKINS, adOK:()=>adEligible(), setMoves:n=>{B.moves=n;updateHud();}, begin:n=>beginLevel(n), applySkin:id=>applySkin(id), cfg:CFG, save:()=>save, tel:()=>TEL, tick:energyTick, show:id=>show(id),
   set:(r,c,t,sp)=>{const x=B.grid[r][c]; x.t=sp==='c'?-1:t; x.sp=sp||null;},
-  state:()=>B&&({busy:B.busy,over:B.over,moves:B.moves,score:B.score,done:goalsDone(),lv:B.lv,ice:B.iceLeft}),
+  state:()=>B&&({busy:B.busy,over:B.over,moves:B.moves,score:B.score,done:goalsDone(),lv:B.lv,ice:B.iceLeft,stone:B.stoneLeft,chain:B.chLeft,drop:B.drop.got}),
   moves:()=>B?movesList():[],
   swap:(a,b)=>doSwap(a,b),
   pick:(mode)=>{
@@ -1699,7 +1923,7 @@ window.__m3={
     for(const m of l){
       const a=[m[0],m[1]],b=[m[2],m[3]]; swapG(a,b);
       const ta=B.grid[a[0]][a[1]],tb=B.grid[b[0]][b[1]];
-      let s=0; for(const g of findGroups()){ s+=g.cells.length+(g.sp?6:0); if(mode==='smart') for(const [r,c] of g.cells){ if(B.ice[r][c]) s+=4; if(B.goals.some(x=>x.k==='col'&&x.c===g.t&&x.n<x.t)) s+=2; } }
+      let s=0; for(const g of findGroups()){ s+=g.cells.length+(g.sp?6:0); if(mode==='smart') for(const [r,c] of g.cells){ if(B.ice[r][c]) s+=4; if(B.goals.some(x=>x.k==='col'&&x.c===g.t&&x.n<x.t)) s+=2; const q=B.grid[r][c]; if(q&&q.ch) s+=4; for(const [dr,dc] of [[1,0],[-1,0],[0,1],[0,-1]]){const r2=r+dr,c2=c+dc; if(inb(r2,c2)&&B.grid[r2][c2]&&B.grid[r2][c2].stone) s+=3;} if(B.drop.want) for(let rr=0;rr<r;rr++) if(B.grid[rr][c]&&B.grid[rr][c].item) s+=3; } }
       if(ta.sp==='c'||tb.sp==='c') s+=14; else if(ta.sp&&tb.sp) s+=10;
       swapG(a,b); s+=Math.random()*.5;
       if(s>bs){bs=s;best=m;}
