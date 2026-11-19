@@ -176,9 +176,9 @@ h2{font-size:30px}
   <h2>玩法說明</h2>
   <div class="help">
     ‧ 點選晶石再點相鄰的晶石，或直接拖曳來交換；要能連成三顆以上才會成功。<br>
-    ‧ <b>4 顆一線</b>：條紋晶，消除時清掉整列或整行。<br>
-    ‧ <b>L／T 形</b>：爆裂晶，消除時清掉周圍 3×3。<br>
-    ‧ <b>5 顆一線</b>：彩虹晶，和任何晶石交換，會清掉盤面上同色的全部。<br>
+    ‧ <b>4 顆一線</b>：月亮晶，消除時清掉整列或整行。<br>
+    ‧ <b>L／T 形</b>：星星晶，消除時清掉周圍 3×3。<br>
+    ‧ <b>5 顆一線</b>：太陽晶，和任何晶石交換，會清掉盤面上同色的全部。<br>
     ‧ 特殊晶石互相交換會同時引爆。<br>
     ‧ 每關有步數限制，達成所有目標就過關，剩餘步數越多星等越高。<br>
     ‧ 每開始一局消耗 1 點體力，每 10 分鐘回復 1 點；體力不足時可看廣告或使用金幣補充。<br>
@@ -555,7 +555,7 @@ const ACH=[
   {id:'st60',k:'st',t:60,n:'星星收藏家',d:'累積 60 顆星',r:{skin:'fruit'}},
   {id:'st300',k:'st',t:300,n:'滿天星斗',d:'累積 300 顆星',r:{g:400}},
   {id:'sp20',k:'sp',t:20,n:'特殊晶石師',d:'製作 20 顆特殊晶石',r:{g:100}},
-  {id:'rb10',k:'rb',t:10,n:'彩虹使者',d:'製作 10 顆彩虹晶',r:{g:150,b:{shuffle:2}}},
+  {id:'rb10',k:'rb',t:10,n:'太陽使者',d:'製作 10 顆太陽晶',r:{g:150,b:{shuffle:2}}},
   {id:'cb30',k:'cb',t:30,n:'連鎖高手',d:'達成 30 次 3 連鎖',r:{g:120}},
   {id:'cl2000',k:'cl',t:2000,n:'清除大師',d:'累計消除 2000 顆晶石',r:{g:200}},
   {id:'dy7',k:'dy',t:7,n:'常客',d:'累計登入 7 天',r:{g:150}},
@@ -1317,69 +1317,79 @@ function drawChain(x,y,s,time){
   ctx.beginPath(); ctx.roundRect?ctx.roundRect(cx-k,cy-k*.3,k*2,k*1.4,k*.3):ctx.rect(cx-k,cy-k*.3,k*2,k*1.4); ctx.fill(); ctx.stroke();
   ctx.restore();
 }
+/* 特殊晶石：月亮(4連・清整列/整行)、星星(L/T・3×3 爆裂)、太陽(5連・清同色) */
+const CRES=(()=>{const c1=[50,50,40],c2=[70,42,33],dx=c2[0]-c1[0],dy=c2[1]-c1[1],d=Math.hypot(dx,dy),a=(c1[2]**2-c2[2]**2+d*d)/(2*d),h=Math.sqrt(c1[2]**2-a*a),px=c1[0]+a*dx/d,py=c1[1]+a*dy/d;return{c1,c2,A:[px+h*dy/d,py-h*dx/d],B:[px-h*dy/d,py+h*dx/d]};})();
+function moonPath(){
+  const {c1,c2,A,B}=CRES; ctx.beginPath();
+  ctx.arc(c1[0],c1[1],c1[2],Math.atan2(A[1]-c1[1],A[0]-c1[0]),Math.atan2(B[1]-c1[1],B[0]-c1[0]),true);
+  ctx.arc(c2[0],c2[1],c2[2],Math.atan2(B[1]-c2[1],B[0]-c2[0]),Math.atan2(A[1]-c2[1],A[0]-c2[0]),false);
+  ctx.closePath();
+}
+const mixW=(col,k)=>'rgb('+RGB[col].map(v=>Math.round(v+(255-v)*k)).join(',')+')';
+function sparkle(x,y,sz,al){
+  ctx.fillStyle='rgba(255,255,255,'+al+')'; ctx.beginPath();
+  ctx.moveTo(x,y-sz); ctx.lineTo(x+sz*.28,y-sz*.28); ctx.lineTo(x+sz,y); ctx.lineTo(x+sz*.28,y+sz*.28);
+  ctx.lineTo(x,y+sz); ctx.lineTo(x-sz*.28,y+sz*.28); ctx.lineTo(x-sz,y); ctx.lineTo(x-sz*.28,y-sz*.28); ctx.closePath(); ctx.fill();
+}
+function drawSym(sp,col,tw){
+  ctx.save(); ctx.lineJoin='round'; ctx.lineCap='round';
+  if(sp==='h'||sp==='v'){
+    const bob=Math.sin(tw*3)*2, ar=Math.sin(tw*6)*2.5;
+    ctx.save(); ctx.translate(50,50+bob); if(sp==='v'){ctx.rotate(Math.PI/2);} ctx.rotate(-.35); ctx.translate(-50,-50);
+    const g=ctx.createLinearGradient(20,10,80,90); g.addColorStop(0,mixW(col,.6)); g.addColorStop(.5,COLORS[col]); g.addColorStop(1,DARK[col]);
+    moonPath(); ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=6; ctx.strokeStyle=DARK[col]; ctx.stroke();
+    ctx.restore();
+    sparkle(76,26+bob,7+Math.sin(tw*5)*2,.95); sparkle(66,74+bob,4,.8);
+    ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.55)'; ctx.lineWidth=3.5;
+    ctx.save(); ctx.translate(50,50); if(sp==='v') ctx.rotate(Math.PI/2); ctx.translate(-50,-50);
+    for(const sg of [-1,1]){
+      const bx=sg<0?4-ar:96+ar;
+      ctx.beginPath(); ctx.moveTo(bx,50); ctx.lineTo(bx-sg*15,36); ctx.lineTo(bx-sg*15,64); ctx.closePath(); ctx.stroke(); ctx.fill();
+    }
+    ctx.restore();
+  }else if(sp==='b'){
+    const p=.5+.5*Math.sin(tw*5);
+    const gr=ctx.createRadialGradient(50,52,16,50,52,58); gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(1,'rgba(255,255,255,'+(.2+.3*p)+')');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(50,52,58,0,7); ctx.fill();
+    ctx.save(); ctx.translate(50,53); ctx.rotate(Math.sin(tw*2)*.08); ctx.scale(1+.04*p,1+.04*p);
+    ctx.beginPath(); for(let i=0;i<10;i++){const an=-Math.PI/2+i*Math.PI/5, r=i%2?21:46; ctx.lineTo(Math.cos(an)*r,Math.sin(an)*r);} ctx.closePath();
+    const g=ctx.createLinearGradient(0,-46,0,40); g.addColorStop(0,mixW(col,.55)); g.addColorStop(.55,COLORS[col]); g.addColorStop(1,DARK[col]);
+    ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=6; ctx.strokeStyle=DARK[col]; ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.5)'; ctx.beginPath(); ctx.ellipse(-10,-16,9,5,-.7,0,7); ctx.fill();
+    ctx.restore();
+    sparkle(80,22,6+p*3,.95); sparkle(20,74,4,.8);
+  }else{
+    ctx.save(); ctx.translate(50,50);
+    const hg=ctx.createRadialGradient(0,0,30,0,0,60); hg.addColorStop(0,'rgba(255,240,170,0)'); hg.addColorStop(1,'rgba(255,240,170,'+(.35+.2*Math.sin(tw*4))+')');
+    ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(0,0,60,0,7); ctx.fill();
+    ctx.save(); ctx.rotate(tw*.7);
+    for(let i=0;i<12;i++){
+      ctx.save(); ctx.rotate(i*Math.PI/6);
+      ctx.beginPath(); ctx.moveTo(-8,-26); ctx.lineTo(0,-47); ctx.lineTo(8,-26); ctx.closePath();
+      ctx.fillStyle=COLORS[i%6]; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='rgba(60,30,0,.55)'; ctx.stroke(); ctx.restore();
+    }
+    ctx.restore();
+    const g=ctx.createRadialGradient(-7,-9,3,0,0,30); g.addColorStop(0,'#fffbe0'); g.addColorStop(.6,'#ffd34d'); g.addColorStop(1,'#ff9d1c');
+    ctx.beginPath(); ctx.arc(0,0,28,0,7); ctx.fillStyle=g; ctx.fill(); ctx.lineWidth=5; ctx.strokeStyle='#b8630f'; ctx.stroke();
+    ctx.fillStyle='#7a3f00'; ctx.beginPath(); ctx.arc(-9,-4,3.4,0,7); ctx.arc(9,-4,3.4,0,7); ctx.fill();
+    ctx.lineWidth=3.2; ctx.strokeStyle='#7a3f00'; ctx.beginPath(); ctx.arc(0,3,10,.25,Math.PI-.25); ctx.stroke();
+    ctx.fillStyle='rgba(255,120,120,.45)'; ctx.beginPath(); ctx.arc(-16,6,4.5,0,7); ctx.arc(16,6,4.5,0,7); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
 function drawTile(col,sp,x,y,s,scale,alpha,time,fl,sx,sy){
   ctx.save(); ctx.globalAlpha=alpha;
   ctx.translate(x+s/2,y+s/2); ctx.scale(scale*(sx||1),scale*(sy||1));
   const u=s*.86/100; ctx.scale(u,u); ctx.translate(-50,-50);
   if(col===-3){drawItem(time||0); ctx.restore(); return;}
-  if(sp==='c'){
+  if(sp){
     const tw=time||0;
-    ctx.save(); ctx.translate(50,50);
-    const hg=ctx.createRadialGradient(0,0,34,0,0,58); hg.addColorStop(0,'rgba(255,255,255,0)'); hg.addColorStop(1,'rgba(255,255,255,'+(.3+.2*Math.sin(tw*4))+')');
-    ctx.fillStyle=hg; ctx.beginPath(); ctx.arc(0,0,58,0,7); ctx.fill();
-    const g=ctx.createRadialGradient(-14,-16,4,0,0,46); g.addColorStop(0,'#9b6a52'); g.addColorStop(.5,'#4b2a20'); g.addColorStop(1,'#1d0f0b');
-    ctx.beginPath(); ctx.arc(0,0,43,0,7); ctx.fillStyle=g; ctx.fill();
-    ctx.save(); ctx.beginPath(); ctx.arc(0,0,41,0,7); ctx.clip();
-    for(let i=0;i<16;i++){
-      const an=i/16*Math.PI*2+tw*.7*(i%2?1:-1), rr=10+((i*29)%27);
-      ctx.save(); ctx.rotate(an); ctx.translate(rr,0); ctx.rotate(i*1.9+tw*1.5);
-      ctx.fillStyle=COLORS[i%6]; ctx.fillRect(-3.2,-7,6.4,14); ctx.restore();
-    }
-    ctx.restore();
-    ctx.lineWidth=6; ctx.strokeStyle='#fff'; ctx.beginPath(); ctx.arc(0,0,43,0,7); ctx.stroke();
-    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(-15,-19,12,7,-.7,0,7); ctx.fill();
-    for(let k=0;k<3;k++){
-      const al=.5+.5*Math.sin(tw*5+k*2.1); if(al<.2) continue;
-      const px=[-26,22,6][k], py=[10,-18,30][k], sz=5+al*4;
-      ctx.fillStyle='rgba(255,255,255,'+al+')'; ctx.beginPath(); ctx.moveTo(px,py-sz); ctx.lineTo(px+sz*.3,py-sz*.3); ctx.lineTo(px+sz,py); ctx.lineTo(px+sz*.3,py+sz*.3); ctx.lineTo(px,py+sz); ctx.lineTo(px-sz*.3,py+sz*.3); ctx.lineTo(px-sz,py); ctx.lineTo(px-sz*.3,py-sz*.3); ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-    if(fl>0){ctx.globalAlpha=alpha*Math.min(1,fl); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(50,50,44,0,Math.PI*2); ctx.fill();}
+    drawSym(sp,col,tw);
+    if(fl>0){ctx.globalAlpha=alpha*Math.min(1,fl); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(50,50,43,0,Math.PI*2); ctx.fill();}
   }else{
     ctx.lineJoin='round'; ctx.lineWidth=7;
-    const tw=time||0;
-    if(sp){const k=1+.035*Math.sin(tw*4); ctx.translate(50,50); ctx.scale(k,k); ctx.translate(-50,-50);}
     paintBody(col,time);
-    if(sp==='h'||sp==='v'){
-      ctx.save(); ctx.translate(50,50); if(sp==='v') ctx.rotate(Math.PI/2); ctx.translate(-50,-50);
-      ctx.save(); ctx.beginPath(); ctx.arc(50,50,41,0,7); ctx.clip();
-      for(let i=0;i<4;i++){const y=20+i*17; ctx.fillStyle='rgba(255,255,255,.78)'; ctx.fillRect(4,y,92,7); ctx.fillStyle='rgba(0,0,0,.2)'; ctx.fillRect(4,y+8,92,2.5);}
-      const sx0=((tw*55)%190)-45, sg=ctx.createLinearGradient(sx0-18,0,sx0+18,0);
-      sg.addColorStop(0,'rgba(255,255,255,0)'); sg.addColorStop(.5,'rgba(255,255,255,.7)'); sg.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle=sg; ctx.fillRect(0,0,100,100);
-      ctx.restore();
-      const o=Math.sin(tw*6)*2.5;
-      ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=4;
-      for(const sg2 of [-1,1]){
-        const bx=sg2<0?3-o:97+o;
-        ctx.beginPath(); ctx.moveTo(bx,50); ctx.lineTo(bx-sg2*16,33); ctx.lineTo(bx-sg2*16,67); ctx.closePath(); ctx.stroke(); ctx.fill();
-      }
-      ctx.restore();
-    }else if(sp==='b'){
-      const p=.5+.5*Math.sin(tw*5);
-      const gr=ctx.createRadialGradient(50,50,26,50,50,56); gr.addColorStop(0,'rgba(255,255,255,0)'); gr.addColorStop(1,'rgba(255,255,255,'+(.22+.3*p)+')');
-      ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(50,50,56,0,7); ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,.92)'; ctx.lineWidth=6; ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(31,16); ctx.quadraticCurveTo(22,50,31,84); ctx.moveTo(69,16); ctx.quadraticCurveTo(78,50,69,84); ctx.stroke();
-      ctx.fillStyle='#fff'; ctx.strokeStyle='rgba(0,0,0,.45)'; ctx.lineWidth=3; ctx.lineJoin='round';
-      for(const sg2 of [-1,1]){
-        const bx=sg2<0?16:84;
-        ctx.beginPath(); ctx.moveTo(bx,50); ctx.lineTo(bx+sg2*18,32); ctx.lineTo(bx+sg2*18,68); ctx.closePath(); ctx.stroke(); ctx.fill();
-        ctx.beginPath(); ctx.arc(bx+sg2*21,50,4,0,7); ctx.fill();
-      }
-      const sz=9+p*4; ctx.fillStyle='#fff';
-      ctx.beginPath(); ctx.moveTo(50,50-sz); ctx.lineTo(50+sz*.3,50-sz*.3); ctx.lineTo(50+sz,50); ctx.lineTo(50+sz*.3,50+sz*.3); ctx.lineTo(50,50+sz); ctx.lineTo(50-sz*.3,50+sz*.3); ctx.lineTo(50-sz,50); ctx.lineTo(50-sz*.3,50-sz*.3); ctx.closePath(); ctx.fill();
-    }
     if(fl>0){ctx.globalAlpha=alpha*Math.min(1,fl); ctx.fillStyle='#fff'; ctx.fill(SHAPES[col]);}
   }
   ctx.restore();
@@ -1642,10 +1652,10 @@ function refreshAll(){
 /* 體力與開局 */
 const TIPS={
   1:['歡迎！','點選一顆晶石，再點相鄰的晶石交換位置。連成 3 顆以上就會消除，達成目標即可過關。'],
-  2:['收集目標','這關要消除指定顏色的晶石。連 4 顆會變成「條紋晶」，消除時整列或整行一起爆開！'],
+  2:['收集目標','這關要消除指定顏色的晶石。連 4 顆會變成「月亮晶」，月亮兩側的箭頭就是清除方向，消除時整列或整行一起爆開！'],
   3:['冰塊','消除冰塊上的晶石就能打碎冰塊。送你 1 個錘子，點一下錘子再點任一顆晶石就能敲掉它。',{b:{hammer:1}}],
-  4:['爆裂晶','排出 L 形或 T 形，會變成「爆裂晶」，消除時清掉周圍 3×3。'],
-  5:['彩虹晶','連 5 顆是「彩虹晶」，和任何晶石交換，會清掉盤面上同色的全部！'],
+  4:['星星晶','排出 L 形或 T 形，會變成「星星晶」，消除時清掉周圍 3×3。'],
+  5:['太陽晶','連 5 顆是「太陽晶」，和任何晶石交換，會清掉盤面上同色的全部！月亮、星星、太陽都會保留原本的顏色（太陽除外），還能和同色晶石一起消除。'],
   7:['洗牌','沒有可走的組合時會自動洗牌；也可以手動用洗牌道具。送你 1 個洗牌。',{b:{shuffle:1}}],
   12:['石頭','石頭不能移動。在它旁邊消除晶石就能打碎，有金邊的雙層石頭要打兩次。送你 1 個錘子。',{b:{hammer:1}}],
   16:['鎖鏈','被鎖住的晶石不能交換，但可以和同色晶石湊成三連來解鎖。送你 1 個錘子。',{b:{hammer:1}}],
