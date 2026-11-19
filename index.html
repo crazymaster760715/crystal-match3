@@ -231,6 +231,7 @@ h2{font-size:30px}
 <div id="scr-set" class="scr">
   <h2>設定與存檔</h2>
   <button class="btn sec" id="b-snd">音效：開</button>
+  <button class="btn sec" id="b-vib">震動：開</button>
   <div class="sub" id="setmsg">進度保存在這個瀏覽器的 localStorage。換裝置或清除資料前，請先匯出 JSON。</div>
   <button class="btn" id="b-exp">匯出存檔 (JSON)</button>
   <button class="btn" id="b-imp">匯入存檔 (JSON)</button>
@@ -589,6 +590,7 @@ const achVal=a=>ACHV[a.k]();
 
 /* ---------- 音效 ---------- */
 let actx=null;
+function vib(p){if(save.vib===false||FAST) return; try{navigator.vibrate&&navigator.vibrate(p);}catch(_){}}
 function snd(f,d=.1,type='sine',v=.12,slide=0){
   if(!save.sound||FAST) return;
   try{
@@ -1039,8 +1041,8 @@ async function specialSwap(a,b,ta,tb){
 async function doSwap(a,b){
   if(!B||B.busy||B.over) return;
   {const x0=B.grid[a[0]][a[1]], y0=B.grid[b[0]][b[1]]; if(!x0||!y0||x0.stone||y0.stone||x0.ch||y0.ch){B.sel=null; B.drag=null; snd(180,.1,'square',.07); return;}}
-  B.busy=true; B.idle=0; B.hint=null; B.sel=null;
-  swapG(a,b); snd(330,.07);
+  B.busy=true; B.idle=0; B.hint=null; B.sel=null; if(B.lv===1) save.tips.hint1=1;
+  swapG(a,b); snd(330,.07); vib(8);
   await waitSettled();
   const ta=B.grid[a[0]][a[1]], tb=B.grid[b[0]][b[1]];
   const isSp=ta.sp==='c'||tb.sp==='c'||(ta.sp&&tb.sp);
@@ -1118,7 +1120,7 @@ async function useHammer(r,c){
 
 /* ---------- 結算 ---------- */
 const adEligible=()=>!CFG.playtest&&!isVip()&&!save.noAds&&CFG.interstitialEvery>0&&(save.done>=CFG.adFree.level||Date.now()-save.first>=CFG.adFree.days*DAYMS);
-function win(){
+function win(){vib([30,40,60]);
   B.over=true;
   const n=B.lv, sm=B.sm!=null?B.sm:B.moves, ratio=sm/B.L.moves, stars=ratio>=.4?3:(ratio>=.2?2:1);
   const first=!save.stars[n];
@@ -1450,7 +1452,7 @@ function update(dt){
   if(B.shake>0){B.shake*=Math.max(0,1-dt*7); if(B.shake<.2) B.shake=0;}
   if(!B.busy&&!B.over){
     B.idle+=dt;
-    if(B.idle>(B.lv<=5?3:5)&&!B.hint){const l=movesList(); if(l.length) B.hint=l[rnd(l.length)];}
+    if(B.idle>(B.lv===1&&!save.tips.hint1?.7:B.lv<=5?3:5)&&!B.hint){const l=movesList(); if(l.length) B.hint=l[rnd(l.length)];}
   }
 }
 function drawFx(){
@@ -1680,7 +1682,7 @@ const TIPS={
   2:['收集目標','這關要消除指定顏色的晶石。連 4 顆會變成「月亮晶」，月亮兩側的箭頭就是清除方向，消除時整列或整行一起爆開！'],
   3:['冰塊','消除冰塊上的晶石就能打碎冰塊。送你 1 個錘子，點一下錘子再點任一顆晶石就能敲掉它。',{b:{hammer:1}}],
   4:['星星晶','排出 L 形或 T 形，會變成「星星晶」，消除時清掉周圍 3×3。'],
-  5:['太陽晶','連 5 顆是「太陽晶」，和任何晶石交換，會清掉盤面上同色的全部！月亮、星星、太陽都會保留原本的顏色（太陽除外），還能和同色晶石一起消除。'],
+  5:['太陽晶','連 5 顆是「太陽晶」，和任何晶石交換，會清掉盤面上同色的全部！月亮、星星是新的符號，太陽能清掉同色全部；兩個特殊符號互換還會有更大的爆炸。'],
   7:['洗牌','沒有可走的組合時會自動洗牌；也可以手動用洗牌道具。送你 1 個洗牌。',{b:{shuffle:1}}],
   12:['石頭','石頭不能移動。在它旁邊消除晶石就能打碎，有金邊的雙層石頭要打兩次。送你 1 個錘子。',{b:{hammer:1}}],
   16:['鎖鏈','被鎖住的晶石不能交換，但可以和同色晶石湊成三連來解鎖。送你 1 個錘子。',{b:{hammer:1}}],
@@ -1954,10 +1956,11 @@ $('b-help').onclick=()=>show('help'); $('b-help-back').onclick=()=>show('main');
 $('b-set').onclick=()=>{setFrom='main'; openSet();}; $('n-set').onclick=()=>{setFrom='map'; openSet();};
 function openSet(){
   $('setmsg').textContent=storageOK?'進度保存在這個瀏覽器的 localStorage。換裝置或清除資料前，請先匯出 JSON。':'此環境無法使用 localStorage，進度不會自動保存。請務必在離開前匯出 JSON。';
-  $('b-snd').textContent='音效：'+(save.sound?'開':'關'); show('set');
+  $('b-snd').textContent='音效：'+(save.sound?'開':'關'); $('b-vib').textContent='震動：'+(save.vib===false?'關':'開'); show('set');
 }
 $('b-set-back').onclick=()=>show(setFrom);
 $('b-snd').onclick=()=>{save.sound=!save.sound; persist(); $('b-snd').textContent='音效：'+(save.sound?'開':'關');};
+$('b-vib').onclick=()=>{save.vib=save.vib===false; persist(); $('b-vib').textContent='震動：'+(save.vib===false?'關':'開'); if(save.vib) vib(30);};
 $('b-exp').onclick=()=>dlJson(save,'crystal-match3-save.json');
 $('b-imp').onclick=()=>$('f-imp').click();
 $('f-imp').onchange=e=>{
@@ -2281,7 +2284,7 @@ function orbFrame(ts){
   if(!O||!$('scr-orb').classList.contains('on')) return;
   orbUpdate(FAST?Math.min(.4,raw*8):raw,raw); orbDraw();
 }
-function orbOpen(mode){show('orb'); orbFit(); orbStart(mode);}
+function orbOpen(mode){show('orb'); orbFit(); orbStart(mode); if(!save.tips.orb){save.tips.orb=1; persist(); modal('轉珠模式','按住一顆晶石拖曳，路過的晶石會依序換位，放開後才消除（5 秒內）。<br>消 4 顆以上、十字、L／T、整排、清色都有加成，連擊越多分數越高。',[{t:'開始'}]);}}
 function orbHub(){
   orbRollDay(); const o=save.orb;
   modal('轉珠模式','<div class="sub">按住一顆珠子拖著走，路過的珠子會換位；放開後三顆以上相連就消除。<b>消法有加成</b>：一次消 4 顆以上每多一顆 +25%、L／T 形 +40%、十字形 +100%、6 連以上長龍 +80%、整排整列 +200%，把某個顏色一次清光還有清色加分。連擊每個 combo 再 +25%。每次最多拖 5 秒。<br><br>今日謎題：最佳 '+o.best+' 分　'+(o.stars?'★'.repeat(o.stars):'尚未過關')+'<br>挑戰最高分：'+o.hi+'　最高連擊：'+o.maxC+' combo</div>',[{t:'每日星軌謎題',fn:()=>orbOpen('daily')},{t:'星晶能量挑戰',fn:()=>orbOpen('chal')},{t:'返回',s:1}]);
