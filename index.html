@@ -158,6 +158,15 @@ h2{font-size:30px}
 .help{font-size:16px;line-height:1.7}
 .coins{font-size:18px}
 #stars{font-size:48px}
+/* ---- 轉珠模式 ---- */
+.orbinfo{display:flex;gap:18px;justify-content:center;font-size:20px;font-weight:800;width:min(440px,100%)}
+#o-tbar{width:min(440px,100%);height:14px;background:rgba(255,255,255,.7);border-radius:8px;overflow:hidden;box-shadow:inset 0 1px 3px #0003}
+#o-tfill{display:block;height:100%;width:100%;background:linear-gradient(#ffd166,#ff8a5c);border-radius:8px}
+#o-cv{touch-action:none;display:block;border-radius:16px;background:rgba(255,255,255,.3);border:4px solid #fff;box-shadow:0 5px 0 #e9b9a3}
+#o-meters{display:flex;gap:10px;width:min(440px,100%)}
+.mt{flex:1;display:flex;align-items:center;gap:6px;font-size:17px;font-weight:800}
+.mt span{flex:1;height:14px;background:rgba(255,255,255,.7);border-radius:8px;overflow:hidden;box-shadow:inset 0 1px 3px #0003}
+.mt i{display:block;height:100%;border-radius:8px}
 </style>
 </head>
 <body>
@@ -168,6 +177,7 @@ h2{font-size:30px}
   <h1>星晶三消</h1>
   <div class="sub">交換相鄰的晶石，連成三顆以上就消除。<br>300 關、10 個世界，一路往前闖。</div>
   <button class="btn" id="b-start">開始遊戲</button>
+  <button class="btn" id="b-orb">轉珠模式</button>
   <button class="btn sec" id="b-help">玩法說明</button>
   <button class="btn sec" id="b-set">設定與存檔</button>
 </div>
@@ -183,6 +193,7 @@ h2{font-size:30px}
     ‧ 每關有步數限制，達成所有目標就過關，剩餘步數越多星等越高。<br>
     ‧ 每開始一局消耗 1 點體力，每 10 分鐘回復 1 點；體力不足時可看廣告或使用金幣補充。<br>
     ‧ <b>障礙物</b>：石頭（旁邊消除才會碎）、鎖鏈（湊成三連解鎖）、星果（送到最底下）、雙層冰（敲兩次）。<br>
+    ‧ <b>轉珠模式</b>：主選單進入。按住珠子拖動換位，每次最多 5 秒，放開後三顆連線就消除，連鎖越多分數越高。<br>
     ‧ 每 10 關有寶箱，每通關一個世界有大獎。完成每日任務與成就可拿金幣、道具與外觀。
   </div>
   <button class="btn sec" id="b-help-back">返回</button>
@@ -203,6 +214,19 @@ h2{font-size:30px}
 <div id="scr-task" class="scr top"><h2>任務</h2><div class="tabs" id="task-tabs"></div><div class="list" id="task-list"></div><button class="btn sec" data-back>返回</button></div>
 <div id="scr-col" class="scr top"><h2>外觀</h2><div class="tabs" id="col-tabs"></div><div class="list" id="col-list"></div><button class="btn sec" data-back>返回</button></div>
 <div id="scr-shop" class="scr top"><h2>商店</h2><div class="coins" id="shop-coins"></div><div class="list" id="shop-list"></div><button class="btn sec" data-back>返回</button></div>
+
+<div id="scr-orb" class="scr top">
+  <div class="bar" style="justify-content:space-between;flex-wrap:nowrap">
+    <button class="btn sec s2" id="o-back" style="min-width:70px">返回</button>
+    <b id="o-title" style="font-size:20px"></b>
+    <button class="btn sec s2" id="o-redo" style="min-width:70px">重來</button>
+  </div>
+  <div id="o-info" class="orbinfo"></div>
+  <div id="o-tbar"><i id="o-tfill"></i></div>
+  <canvas id="o-cv"></canvas>
+  <div id="o-meters"></div>
+  <div id="o-goal" class="sm" style="text-align:center;max-width:440px"></div>
+</div>
 
 <div id="scr-set" class="scr">
   <h2>設定與存檔</h2>
@@ -459,7 +483,7 @@ const defSave=()=>({v:3,coins:50,done:0,stars:{},boost:{hammer:2,shuffle:2,moves
   energy:{n:CFG.energy.cap,t:Date.now(),seen:Date.now(),adDay:'',adUsed:0},
   vip:{until:0,gDay:''},noAds:false,
   daily:{day:'',prog:{},claimed:{}},login:{last:'',streak:0,claimed:''},
-  tips:{},fl:{n:0,c:0},ev:{wk:'',w:0,s:0,c:0,cl:{},stamp:0,stampCl:{},round:0,album:{},albumCl:{},pity:0},starter:false,ach:{},stats:{win:0,clear:0,special:0,combo:0,rainbow:0,stars:0,days:0,ads:0,iap:0},first:Date.now()});
+  tips:{},fl:{n:0,c:0},ev:{wk:'',w:0,s:0,c:0,cl:{},stamp:0,stampCl:{},round:0,album:{},albumCl:{},pity:0},orb:{hi:0,maxC:0,day:'',best:0,stars:0,rew:0},starter:false,ach:{},stats:{win:0,clear:0,special:0,combo:0,rainbow:0,stars:0,days:0,ads:0,iap:0},first:Date.now()});
 let save=defSave();
 function merge(d,o){
   if(!o||typeof o!=='object') return d;
@@ -1601,7 +1625,7 @@ const endDrag=()=>{if(B) B.drag=null;};
 cv.addEventListener('pointerup',endDrag); cv.addEventListener('pointercancel',endDrag);
 
 /* ---------- 選單與養成 ---------- */
-const screens=['main','help','map','set','pause','res','shop','col','task','data'];
+const screens=['main','help','map','set','pause','res','shop','col','task','data','orb'];
 let setFrom='main';
 function show(id){
   for(const s of screens) $('scr-'+s).classList.toggle('on',s===id);
@@ -1962,6 +1986,271 @@ $('b-more').onclick=()=>{
 };
 $('bb-hammer').onclick=()=>boostUse('hammer'); $('bb-shuffle').onclick=()=>boostUse('shuffle'); $('bb-moves').onclick=()=>boostUse('moves');
 
+/* ---------- 轉珠模式：每日星軌謎題／星晶能量挑戰 ---------- */
+const OR_R=5, OR_C=6, OR_NC=5, OR_T=5, OR_TURNS=30, OR_CAP=[16,16,8], OR_MC=[0,0,1,1,2], OR_QN=80;
+const octv=$('o-cv'), octx=octv.getContext('2d');
+let O=null, ocell=60, oDPR=1, olast=0, odayCache=null;
+const grid2=(f)=>Array.from({length:OR_R},(_,r)=>Array.from({length:OR_C},(_,c)=>f(r,c)));
+/* 找出所有相連的消除群組（三顆以上同色連線，相連的同色群視為一個 combo） */
+function orbMarks(a){
+  const R=OR_R, C=OR_C, mk=grid2(()=>false);
+  for(let r=0;r<R;r++){let c=0; while(c<C){const v=a[r][c]; let e=c; while(v>=0&&e+1<C&&a[r][e+1]===v) e++; if(v>=0&&e-c>=2) for(let k=c;k<=e;k++) mk[r][k]=true; c=e+1;}}
+  for(let c=0;c<C;c++){let r=0; while(r<R){const v=a[r][c]; let e=r; while(v>=0&&e+1<R&&a[e+1][c]===v) e++; if(v>=0&&e-r>=2) for(let k=r;k<=e;k++) mk[k][c]=true; r=e+1;}}
+  const seen=grid2(()=>false), gs=[];
+  for(let r=0;r<R;r++) for(let c=0;c<C;c++){
+    if(!mk[r][c]||seen[r][c]) continue;
+    const v=a[r][c], st=[[r,c]], cells=[]; seen[r][c]=true;
+    while(st.length){const [y,x]=st.pop(); cells.push([y,x]); for(const [dy,dx] of [[1,0],[-1,0],[0,1],[0,-1]]){const y2=y+dy,x2=x+dx; if(y2>=0&&y2<R&&x2>=0&&x2<C&&mk[y2][x2]&&!seen[y2][x2]&&a[y2][x2]===v){seen[y2][x2]=true; st.push([y2,x2]);}}}
+    gs.push({c:v,cells});
+  }
+  return gs;
+}
+/* 純計算版連鎖（用來產生謎題目標），會修改 a */
+function orbCascade(a,nextCol){
+  const R=OR_R, C=OR_C; let combos=0;
+  for(let g=0;g<40;g++){
+    const gs=orbMarks(a); if(!gs.length) break;
+    combos+=gs.length; for(const x of gs) for(const [r,c] of x.cells) a[r][c]=-1;
+    for(let c=0;c<C;c++){let w=R-1; for(let r=R-1;r>=0;r--) if(a[r][c]>=0){if(w!==r){a[w][c]=a[r][c]; a[r][c]=-1;} w--;} for(let r=w;r>=0;r--) a[r][c]=nextCol(c);}
+  }
+  return combos;
+}
+function orbApplyPath(a,path){
+  let [hr,hc]=path[0];
+  for(let i=1;i<path.length;i++){const [r,c]=path[i], t=a[hr][hc]; a[hr][hc]=a[r][c]; a[r][c]=t; hr=r; hc=c;}
+}
+const ODIRS=[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+function orbDaily(){
+  const key=dkey(); if(odayCache&&odayCache.key===key) return odayCache;
+  let h=0; for(const ch of key) h=(Math.imul(h,31)+ch.charCodeAt(0))>>>0;
+  const rg=srng(h^0x9e3779b9); let a;
+  do{a=grid2(()=>Math.floor(rg()*OR_NC));}while(orbMarks(a).length);
+  const q=Array.from({length:OR_C},()=>Array.from({length:OR_QN},()=>Math.floor(rg()*OR_NC)));
+  const sg=srng(h+7); let best=0, bp=null;
+  const trial=path=>{
+    const b=a.map(r=>r.slice()), qi=Array(OR_C).fill(0);
+    orbApplyPath(b,path); return orbCascade(b,c=>q[c][qi[c]++%OR_QN]);
+  };
+  const walk=(path,len)=>{
+    while(path.length<len){
+      const [r,c]=path[path.length-1], pv=path.length>1?path[path.length-2]:[-9,-9];
+      const opts=ODIRS.map(d=>[r+d[0],c+d[1]]).filter(p=>p[0]>=0&&p[0]<OR_R&&p[1]>=0&&p[1]<OR_C&&!(p[0]===pv[0]&&p[1]===pv[1]));
+      path.push(opts[Math.floor(sg()*opts.length)]);
+    }
+    return path;
+  };
+  for(let n=0;n<1200;n++){
+    const p=walk([[Math.floor(sg()*OR_R),Math.floor(sg()*OR_C)]],6+Math.floor(sg()*14)), v=trial(p);
+    if(v>best){best=v; bp=p;}
+  }
+  for(let n=0;n<800&&bp;n++){
+    const keep=2+Math.floor(sg()*(bp.length-1)), p=walk(bp.slice(0,keep),6+Math.floor(sg()*14)), v=trial(p);
+    if(v>=best){best=v; bp=p;}
+  }
+  const t1=Math.max(3,Math.round(best*.5)), t2=Math.max(t1+1,Math.round(best*.7)), t3=Math.max(t2+1,Math.round(best*.9));
+  return odayCache={key,a,q,best,thr:[t1,t2,t3]};
+}
+const orbColors=g=>g.map(r=>r.map(o=>o?o.c:-1));
+const orbNext=c=>O.q?O.q[c][O.qi[c]++%OR_QN]:Math.floor(Math.random()*OR_NC);
+function orbMkOrb(col,r,c,drop){return {c:col,x:c,y:drop,vy:0,die:-1};}
+function orbStart(mode){
+  const my=O={mode,turn:0,score:0,maxC:0,totC:0,left:OR_T,started:false,phase:'busy',held:null,ptr:null,parts:[],texts:[],t:0,meters:[0,0,0],qi:Array(OR_C).fill(0),q:null,g:null,show:0,showTxt:'',comboNow:0,over:false};
+  let a;
+  if(mode==='daily'){const d=orbDaily(); my.q=d.q; my.thr=d.thr; my.best=d.best; a=d.a;}
+  else{do{a=grid2(()=>Math.floor(Math.random()*OR_NC));}while(orbMarks(a).length);}
+  my.g=grid2((r,c)=>orbMkOrb(a[r][c],r,c,r-OR_R-1-Math.random()*.5));
+  $('o-title').textContent=mode==='daily'?'每日星軌謎題':'星晶能量挑戰';
+  $('o-meters').classList.toggle('hide',mode!=='chal');
+  orbHud();
+  orbSettle().then(()=>{if(O===my) my.phase='idle';});
+}
+const orbSettled=()=>{for(let r=0;r<OR_R;r++) for(let c=0;c<OR_C;c++){const o=O.g[r][c]; if(o&&(Math.abs(o.x-c)>.01||Math.abs(o.y-r)>.01)) return false;} return true;};
+async function orbSettle(){const my=O; let g=0; while(O===my&&!orbSettled()&&g++<600) await nextFrame(); await sleep(40);}
+function orbHud(){
+  if(!O) return;
+  if(O.mode==='chal'){
+    $('o-info').innerHTML='<span>回合 '+Math.min(O.turn+1,OR_TURNS)+'/'+OR_TURNS+'</span><span>分數 '+O.score+'</span>';
+    $('o-goal').textContent='最高連擊 '+O.maxC+' combo　紀錄 '+save.orb.hi+' 分';
+    const nm=['日','月','星'];
+    $('o-meters').innerHTML=nm.map((n,i)=>'<div class="mt"><b>'+n+'</b><span><i style="width:'+Math.round(O.meters[i]/OR_CAP[i]*100)+'%;background:'+['#ffb21e','#7fb6ff','#c58bff'][i]+'"></i></span></div>').join('');
+  }else{
+    const t=O.thr;
+    $('o-info').innerHTML='<span>連擊 '+O.comboNow+'</span><span>今日最佳 '+save.orb.best+'</span>';
+    $('o-goal').innerHTML='目標　★ '+t[0]+' combo　★★ '+t[1]+'　★★★ '+t[2]+'　（本題最高約 '+O.best+'）';
+  }
+}
+function orbFit(){
+  oDPR=Math.min(window.devicePixelRatio||1,2);
+  let w=Math.min(innerWidth-24,480), cs=w/OR_C;
+  const maxH=innerHeight-330; if(cs*OR_R>maxH) cs=Math.max(36,maxH/OR_R);
+  ocell=Math.floor(cs); const W=ocell*OR_C, H=ocell*OR_R;
+  octv.style.width=W+'px'; octv.style.height=H+'px'; octv.width=Math.round(W*oDPR); octv.height=Math.round(H*oDPR);
+}
+function orbCellAt(e){
+  const rect=octv.getBoundingClientRect(), fx=(e.clientX-rect.left)/rect.width*OR_C, fy=(e.clientY-rect.top)/rect.height*OR_R;
+  const r=Math.floor(fy), c=Math.floor(fx);
+  return {fx,fy,r:Math.max(0,Math.min(OR_R-1,r)),c:Math.max(0,Math.min(OR_C-1,c)),dist:Math.hypot(fx-(c+.5),fy-(r+.5)),inb:r>=0&&r<OR_R&&c>=0&&c<OR_C};
+}
+function orbSwapTo(r,c){
+  const [hr,hc]=O.held, a=O.g[hr][hc], b=O.g[r][c];
+  O.g[hr][hc]=b; O.g[r][c]=a; O.held=[r,c]; O.path.push([r,c]);
+  if(!O.started) O.started=true;
+  snd(440+O.path.length*18,.05,'sine',.06);
+}
+octv.addEventListener('pointerdown',e=>{
+  if(!O||O.phase!=='idle'||O.over) return;
+  const p=orbCellAt(e); if(!p.inb) return;
+  O.held=[p.r,p.c]; O.phase='drag'; O.started=false; O.left=OR_T; O.path=[[p.r,p.c]]; O.ptr={fx:p.fx,fy:p.fy};
+  try{octv.setPointerCapture(e.pointerId);}catch(_){}
+});
+octv.addEventListener('pointermove',e=>{
+  if(!O||O.phase!=='drag') return;
+  const p=orbCellAt(e); O.ptr={fx:p.fx,fy:p.fy};
+  const [hr,hc]=O.held;
+  if((p.r!==hr||p.c!==hc)&&p.dist<.7) orbSwapTo(p.r,p.c);
+});
+const orbEnd=()=>{if(O&&O.phase==='drag') orbRelease();};
+octv.addEventListener('pointerup',orbEnd); octv.addEventListener('pointercancel',orbEnd);
+function orbRelease(){
+  if(!O||O.phase!=='drag') return;
+  O.held=null;
+  if(!O.started){O.phase='idle'; return;}
+  O.phase='busy'; orbResolve();
+}
+function orbBurstFx(x,y,col,n){
+  for(let i=0;i<n;i++){const a=Math.random()*6.283, v=1.5+Math.random()*3; O.parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-1,age:0,life:.5+Math.random()*.3,c:col});}
+}
+async function orbResolve(){
+  const my=O; let combos=0;
+  my.comboNow=0; my.left=OR_T;
+  for(let wave=0;wave<60;wave++){
+    let gs=orbMarks(orbColors(my.g));
+    if(!gs.length){
+      if(my.mode==='chal'&&my.meters.every((m,i)=>m>=OR_CAP[i])){
+        my.meters=[0,0,0]; my.show=1.4; my.showTxt='日月星合一！'; snd(300,.5,'sawtooth',.1,700); orbHud();
+        let n=0; for(let r=0;r<OR_R;r++) for(let c=0;c<OR_C;c++){const o=my.g[r][c]; if(o){o.die=0; n++; orbBurstFx(c+.5,r+.5,o.c,2);}}
+        my.score+=n*30; my.texts.push({x:OR_C/2,y:OR_R/2,txt:'+'+n*30,age:0});
+        await sleep(520); if(O!==my) return;
+        for(let r=0;r<OR_R;r++) for(let c=0;c<OR_C;c++) my.g[r][c]=null;
+        orbDrop(my); await orbSettle(); if(O!==my) return;
+        continue;
+      }
+      break;
+    }
+    for(const g of gs){
+      combos++; my.comboNow=combos; const gp=Math.round(g.cells.length*10*(1+.25*(combos-1))); my.score+=gp;
+      let sy=0,sx=0;
+      for(const [r,c] of g.cells){
+        const o=my.g[r][c]; o.die=0; sy+=r+.5; sx+=c+.5; orbBurstFx(c+.5,r+.5,o.c,3);
+        if(my.mode==='chal'){const m=OR_MC[o.c]; my.meters[m]=Math.min(OR_CAP[m],my.meters[m]+1);}
+      }
+      my.texts.push({x:sx/g.cells.length,y:sy/g.cells.length,txt:'+'+gp,age:0});
+      my.showTxt=combos+' Combo'; my.show=1; snd(520+Math.min(combos,12)*55,.16,'triangle',.1,200);
+      orbHud(); await sleep(250); if(O!==my) return;
+    }
+    await sleep(200); if(O!==my) return;
+    for(let r=0;r<OR_R;r++) for(let c=0;c<OR_C;c++){const o=my.g[r][c]; if(o&&o.die>=0) my.g[r][c]=null;}
+    orbDrop(my); await orbSettle(); if(O!==my) return;
+  }
+  my.maxC=Math.max(my.maxC,combos); my.totC+=combos;
+  orbHud();
+  if(my.mode==='chal'){
+    my.turn++;
+    if(my.turn>=OR_TURNS) return orbFinishChal();
+    my.phase='idle'; my.left=OR_T;
+  }else orbFinishDaily(combos);
+}
+function orbDrop(my){
+  for(let c=0;c<OR_C;c++){
+    let w=OR_R-1;
+    for(let r=OR_R-1;r>=0;r--){const o=my.g[r][c]; if(o){if(w!==r){my.g[w][c]=o; my.g[r][c]=null;} w--;}}
+    let k=0; for(let r=w;r>=0;r--){my.g[r][c]=orbMkOrb(orbNext(c),r,c,-(++k));}
+  }
+}
+function orbRollDay(){const o=save.orb; if(o.day!==dkey()){o.day=dkey(); o.best=0; o.stars=0; o.rew=0;}}
+function orbFinishChal(){
+  const my=O; my.over=true; my.phase='busy'; const o=save.orb;
+  const newHi=my.score>o.hi; o.hi=Math.max(o.hi,my.score); o.maxC=Math.max(o.maxC,my.maxC);
+  const g=Math.min(120,Math.floor(my.score/500)*5), msg=g?grant({g}):''; persist(); renderBar();
+  modal('挑戰結束','<div class="sub">得分 <b>'+my.score+'</b>'+(newHi?'（新紀錄！）':'（紀錄 '+o.hi+'）')+'<br>最高連擊 '+my.maxC+' combo<br>'+(g?'獎勵：'+msg:'')+'</div>',[{t:'再挑戰一次',fn:()=>orbStart('chal')},{t:'返回',s:1,fn:()=>{O=null; show('main');}}]);
+}
+const ORW=[{g:30},{g:40},{g:60,b:{hammer:1}}];
+function orbFinishDaily(combos){
+  const my=O; my.over=true; orbRollDay(); const o=save.orb, t=my.thr;
+  const st=combos>=t[2]?3:combos>=t[1]?2:combos>=t[0]?1:0;
+  o.best=Math.max(o.best,combos); o.stars=Math.max(o.stars,st);
+  let rew=''; while(o.rew<o.stars){const r=ORW[o.rew]; o.rew++; rew+=(rew?'；':'')+grant(r);}
+  persist(); renderBar();
+  const need=st<3?'再打出 '+(t[st]-combos)+' combo 可得 '+'★'.repeat(st+1):'完美！';
+  modal(st?'過關':'再試一次','<div class="sub">你打出 <b>'+combos+'</b> combo '+(st?'<b style="color:#ffd166">'+'★'.repeat(st)+'</b>':'')+'<br>'+need+(rew?'<br>獎勵：'+rew:'')+'<br><span class="sm">每天一題，題目相同，可以一直重玩練習。</span></div>',[{t:'再試一次',fn:()=>orbStart('daily')},{t:'返回',s:1,fn:()=>{O=null; show('main');}}]);
+}
+/* 繪製與更新 */
+function orbUpdate(dt,raw){
+  O.t+=dt;
+  for(let r=0;r<OR_R;r++) for(let c=0;c<OR_C;c++){
+    const o=O.g[r][c]; if(!o) continue;
+    o.x+=(c-o.x)*Math.min(1,dt*20); if(Math.abs(c-o.x)<.005) o.x=c;
+    if(o.y<r-.001){o.vy+=dt*70; o.y=Math.min(r,o.y+o.vy*dt); if(o.y>=r){o.y=r;o.vy=0;}}
+    else if(o.y>r+.001){o.y+=(r-o.y)*Math.min(1,dt*20); if(Math.abs(r-o.y)<.005) o.y=r; o.vy=0;}
+    else{o.y=r;o.vy=0;}
+    if(o.die>=0) o.die+=dt;
+  }
+  for(const p of O.parts){p.age+=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=dt*9;}
+  O.parts=O.parts.filter(p=>p.age<p.life);
+  for(const x of O.texts) x.age+=dt; O.texts=O.texts.filter(x=>x.age<.9);
+  if(O.show>0) O.show-=dt*1.1;
+  if(O.phase==='drag'&&O.started){O.left-=raw; if(O.left<=0){O.left=0; orbRelease();}}
+  const f=$('o-tfill'); f.style.width=(O.phase==='drag'&&O.started||O.phase==='busy'&&O.left<OR_T?Math.max(0,O.left)/OR_T*100:100)+'%'; f.style.background=O.left<1.5?'linear-gradient(#ff8a8a,#ff4d4d)':'';
+}
+function orbDraw(){
+  const c=octx, W=ocell*OR_C, H=ocell*OR_R;
+  c.setTransform(oDPR,0,0,oDPR,0,0); c.clearRect(0,0,W,H);
+  for(let r=0;r<OR_R;r++) for(let q=0;q<OR_C;q++){c.fillStyle=BGL?((r+q)%2?'rgba(255,255,255,.55)':'rgba(255,255,255,.32)'):((r+q)%2?'rgba(40,56,120,.38)':'rgba(20,30,80,.38)'); c.fillRect(q*ocell,r*ocell,ocell,ocell);}
+  const prev=ctx; ctx=octx;
+  try{
+    const hr=O.held?O.held[0]:-1, hc=O.held?O.held[1]:-1;
+    for(let r=0;r<OR_R;r++) for(let q=0;q<OR_C;q++){
+      const o=O.g[r][q]; if(!o) continue;
+      if(r===hr&&q===hc){drawTile(o.c,null,q*ocell,r*ocell,ocell,.95,.35,O.t,0); continue;}
+      let sc=1,al=1,fl=0;
+      if(o.die>=0){const k=Math.min(1,o.die/.28); sc=k<.3?1+.25*(k/.3):1.25*(1-(k-.3)/.7); al=1-k; fl=.8*(1-k);}
+      drawTile(o.c,null,o.x*ocell,o.y*ocell,ocell,Math.max(.01,sc),Math.max(0,al),O.t,fl);
+    }
+    if(O.held&&O.ptr){
+      const o=O.g[hr][hc], px=Math.max(0,Math.min(OR_C,O.ptr.fx)), py=Math.max(0,Math.min(OR_R,O.ptr.fy));
+      drawTile(o.c,null,(px-.5)*ocell,(py-.5)*ocell,ocell,1.2,.96,O.t,0);
+    }
+  }finally{ctx=prev;}
+  for(const p of O.parts){const a=1-p.age/p.life; c.globalAlpha=a; c.fillStyle=COLORS[p.c]; c.beginPath(); c.arc(p.x*ocell,p.y*ocell,ocell*.07*(.5+a),0,7); c.fill();}
+  c.globalAlpha=1;
+  c.font='bold '+Math.round(ocell*.34)+'px sans-serif'; c.textAlign='center'; c.textBaseline='middle'; c.lineWidth=4; c.strokeStyle='#000';
+  for(const x of O.texts){c.globalAlpha=1-x.age/.9; const yy=(x.y-x.age*.7)*ocell; c.strokeText(x.txt,x.x*ocell,yy); c.fillStyle='#ffe58a'; c.fillText(x.txt,x.x*ocell,yy);}
+  c.globalAlpha=1;
+  if(O.show>0){
+    const k=Math.min(1,O.show), sc=1+.35*Math.max(0,O.show-.8)*5;
+    c.save(); c.globalAlpha=Math.min(1,k*1.5); c.translate(W/2,H*.42); c.scale(sc,sc);
+    c.font='900 '+Math.round(ocell*.8)+'px sans-serif'; c.lineJoin='round'; c.lineWidth=Math.round(ocell*.14); c.strokeStyle='#5b2a00';
+    const g=c.createLinearGradient(0,-ocell*.4,0,ocell*.4); g.addColorStop(0,'#fff6b0'); g.addColorStop(1,'#ffa530');
+    c.strokeText(O.showTxt,0,0); c.fillStyle=g; c.fillText(O.showTxt,0,0); c.restore();
+  }
+}
+function orbFrame(ts){
+  requestAnimationFrame(orbFrame);
+  const raw=Math.min(.05,(ts-olast)/1000||0); olast=ts;
+  if(!O||!$('scr-orb').classList.contains('on')) return;
+  orbUpdate(FAST?Math.min(.4,raw*8):raw,raw); orbDraw();
+}
+function orbOpen(mode){show('orb'); orbFit(); orbStart(mode);}
+function orbHub(){
+  orbRollDay(); const o=save.orb;
+  modal('轉珠模式','<div class="sub">按住一顆珠子拖著走，路過的珠子會換位；放開後三顆以上相連就消除，連鎖越多分數越高。每次最多拖 5 秒，從第一次移動開始計時。<br><br>今日謎題：最佳 '+o.best+' combo　'+(o.stars?'★'.repeat(o.stars):'尚未過關')+'<br>挑戰最高分：'+o.hi+'　最高連擊：'+o.maxC+' combo</div>',[{t:'每日星軌謎題',fn:()=>orbOpen('daily')},{t:'星晶能量挑戰',fn:()=>orbOpen('chal')},{t:'返回',s:1}]);
+}
+$('b-orb').onclick=orbHub;
+$('o-back').onclick=()=>{O=null; show('main');};
+$('o-redo').onclick=()=>{if(O&&O.phase!=='busy') orbStart(O.mode);};
+addEventListener('resize',()=>{if($('scr-orb').classList.contains('on')) orbFit();});
+requestAnimationFrame(orbFrame);
+
 /* 啟動 */
 loadSave(); tLoad();
 TEL.sess.push({s:Date.now(),d:0}); if(TEL.sess.length>60) TEL.sess.shift();
@@ -1969,7 +2258,7 @@ TEL.sess.push({s:Date.now(),d:0}); if(TEL.sess.length>60) TEL.sess.shift();
 energyTick(); loginRoll(); dailyRoll();
 if(!usable('skin',save.skin)) save.skin='gem'; if(!usable('bg',save.bg)) save.bg='sunny';
 applySkin(save.skin); applyBg(save.bg); persist(); tSave();
-for(const s of ['main','help','map','set','shop','col','task','data']) $('scr-'+s).classList.add('wm');
+for(const s of ['main','help','map','set','shop','col','task','data','orb']) $('scr-'+s).classList.add('wm');
 let tickN=0;
 setInterval(()=>{
   energyTick(); tickN++;
@@ -1988,6 +2277,8 @@ window.__m3={
   start:n=>startLevel(n), skins:()=>SKINS, adOK:()=>adEligible(), setMoves:n=>{B.moves=n;updateHud();}, begin:n=>beginLevel(n), applySkin:id=>applySkin(id), cfg:CFG, save:()=>save, tel:()=>TEL, tick:energyTick, show:id=>show(id),
   set:(r,c,t,sp)=>{const x=B.grid[r][c]; x.t=sp==='c'?-1:t; x.sp=sp||null;},
   state:()=>B&&({busy:B.busy,over:B.over,moves:B.moves,score:B.score,done:goalsDone(),lv:B.lv,ice:B.iceLeft,stone:B.stoneLeft,chain:B.chLeft,drop:B.drop.got}),
+  orb:{start:m=>orbOpen(m),state:()=>O&&({phase:O.phase,score:O.score,turn:O.turn,thr:O.thr,best:O.best,meters:O.meters,combo:O.comboNow,over:O.over,maxC:O.maxC}),board:()=>O&&orbColors(O.g),
+    play:path=>{O.held=path[0].slice(); O.phase='drag'; O.path=[path[0]]; for(let i=1;i<path.length;i++) orbSwapTo(path[i][0],path[i][1]); orbRelease();}},
   moves:()=>B?movesList():[],
   swap:(a,b)=>doSwap(a,b),
   pick:(mode)=>{
